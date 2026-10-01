@@ -76,9 +76,19 @@ for i = 1:size(nodes_hemi, 1)
     end
 end
 
+% Constrain Z-rigid body motion at apex node (phi = phi_0, top rim)
+apex_node = 1; min_d = 1e9;
+for i = 1:size(nodes_hemi, 1)
+    d = norm(nodes_hemi(i, :) - [0, 0, R*cos(phi_0)]);
+    if d < min_d
+        min_d = d; apex_node = i;
+    end
+end
+bc_hemi = [bc_hemi; apex_node, 3, 0];
+
 % Point load at A (theta = 0, phi = pi/2) and B (theta = pi/2, phi = pi/2)
-node_A = find(abs(nodes_hemi(:,2)) < 1e-5 & abs(nodes_hemi(:,3)) < 1e-3, 1);
-node_B = find(abs(nodes_hemi(:,1)) < 1e-5 & abs(nodes_hemi(:,3)) < 1e-3, 1);
+node_A = find(abs(nodes_hemi(:,2)) < 1e-5 & abs(nodes_hemi(:,3)) < 1e-2, 1);
+node_B = find(abs(nodes_hemi(:,1)) < 1e-5 & abs(nodes_hemi(:,3)) < 1e-2, 1);
 
 p_loads_hemi = [
     node_A, 1,  P_max; % Pulling force along X

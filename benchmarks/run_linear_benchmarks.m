@@ -51,8 +51,9 @@ plot_convergence(mesh_N, errors_reg, {'Simplified MITC4+'}, 'L-Shaped Structure 
 
 %% 2. SCORDELIS-LO ROOF (Section 5.3)
 fprintf('\n[2] Scordelis-Lo Roof Problem:\n');
-L = 25.0; R = 25.0; E = 4.32e8; nu = 0.0; thickness = 0.25; fz = -90.0;
-[nodes_roof, elements_roof] = generate_quad_mesh([0, L], [0, pi/3], 8, 8, 'none');
+% Scordelis-Lo roof geometry: L = 50.0, R = 25.0, theta = 40 deg = 40*pi/180
+L = 50.0; R = 25.0; phi_span = 40 * pi / 180; E = 4.32e8; nu = 0.0; thickness = 0.25; fz = -90.0;
+[nodes_roof, elements_roof] = generate_quad_mesh([0, L], [-phi_span, phi_span], 8, 8, 'none');
 
 % Convert cylindrical coords (r=R, theta) to Cartesian
 for i = 1:size(nodes_roof, 1)
@@ -62,7 +63,7 @@ for i = 1:size(nodes_roof, 1)
 end
 
 % Fixed rigid diaphragm ends at y = 0 and y = L (u_x = u_z = 0)
-% Fixed axial displacement u_y = 0 at y = L/2 symmetry line to prevent rigid body translation along Y
+% Fixed axial displacement u_y = 0 at y = L/2 symmetry line
 bc_roof = [];
 for i = 1:size(nodes_roof, 1)
     y_i = nodes_roof(i, 2);
@@ -74,8 +75,8 @@ for i = 1:size(nodes_roof, 1)
     end
 end
 
-% Self-weight gravity load in Z direction [0, 0, fz]
-loads_roof = [0, 0, fz];
+% Self-weight gravity load in Z direction per unit surface area passed in struct
+loads_roof = struct('surface_load', [0, 0, fz]);
 [U_roof, ~, ~, ~] = solve_linear_fe(nodes_roof, elements_roof, thickness, E, nu, bc_roof, loads_roof);
 
 % Find mid-point node at x=0, y=L/2

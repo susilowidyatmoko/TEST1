@@ -7,7 +7,14 @@ function [U, R_net, K_global, F_ext] = solve_linear_fe(nodes, elements, thicknes
 %   thickness          : Shell thickness (scalar or N x 1 vector)
 %   E, nu              : Material properties
 %   boundary_conditions: K x 2 or K x 3 matrix [node_id, dof_index, (value)]
-%   loads              : Scalar (surface load), struct ('surface_pressure'), or matrix [dof_global_index, force_value]
+%   loads              : Struct or matrix.
+%                        Struct options:
+%                          loads.surface_load     : [px, py, pz] (3x1 or 1x3 vector per unit area)
+%                          loads.surface_pressure : scalar p
+%                          loads.point_loads      : K x 3 matrix [node_id, dof_id, force_value]
+%                        Matrix options:
+%                          K x 3 matrix [node_id, dof_id, force_value]
+%                          K x 2 matrix [global_dof_idx, force_value]
 
 num_nodes = size(nodes, 1);
 num_elem  = size(elements, 1);
@@ -21,11 +28,13 @@ K_global = zeros(total_dofs, total_dofs);
 F_ext    = zeros(total_dofs, 1);
 
 % Parse surface load / pressure
-surface_pressure = 0;
-if isstruct(loads) && isfield(loads, 'surface_pressure')
-    surface_pressure = loads.surface_pressure;
-elseif isnumeric(loads) && numel(loads) == 1
-    surface_pressure = loads;
+surface_load = 0;
+if isstruct(loads)
+    if isfield(loads, 'surface_load')
+        surface_load = loads.surface_load;
+    elseif isfield(loads, 'surface_pressure')
+        surface_load = loads.surface_pressure;
+    end
 end
 
 % Assemble global stiffness matrix and element surface loads
@@ -43,7 +52,7 @@ for e = 1:num_elem
     elem_v1 = V1(elem_nodes, :);
     elem_v2 = V2(elem_nodes, :);
 
-    [Ke, Fe] = element_stiffness_simplified_mitc4(elem_x, elem_t, elem_vn, elem_v1, elem_v2, E, nu, surface_pressure);
+    [Ke, Fe] = element_stiffness_simplified_mitc4(elem_x, elem_t, elem_vn, elem_v1, elem_v2, E, nu, surface_load);
 
     elem_dofs = zeros(1, 24);
     for i = 1:4
@@ -54,21 +63,30 @@ for e = 1:num_elem
     F_ext(elem_dofs) = F_ext(elem_dofs) + Fe;
 end
 
-% Parse point loads
-if isnumeric(loads) && numel(loads) > 1
-    if size(loads, 2) == 2
-        for l = 1:size(loads, 1)
-            dof_idx = loads(l, 1);
-            val = loads(l, 2);
+% Parse point loads [node_id, dof_id, force_value]
+point_loads_mat = [];
+if isstruct(loads) && isfield(loads, 'point_loads')
+    point_loads_mat = loads.point_loads;
+elseif isnumeric(loads) && ~isempty(loads) && ~isstruct(loads)
+    point_loads_mat = loads;
+end
+
+if ~isempty(point_loads_mat)
+    if size(point_loads_mat, 2) == 2
+        for l = 1:size(point_loads_mat, 1)
+            dof_idx = point_loads_mat(l, 1);
+            val     = point_loads_mat(l, 2);
             F_ext(dof_idx) = F_ext(dof_idx) + val;
         end
-    elseif size(loads, 2) >= 3
-        for l = 1:size(loads, 1)
-            nid = loads(l, 1);
-            did = loads(l, 2);
-            val = loads(l, 3);
-            dof_idx = (nid - 1) * 6 + did;
-            F_ext(dof_idx) = F_ext(dof_idx) + val;
+    elseif size(point_loads_mat, 2) >= 3
+        for l = 1:size(point_loads_mat, 1)
+            nid = point_loads_mat(l, 1);
+            did = point_loads_mat(l, 2);
+            val = point_loads_mat(l, 3);
+            if nid >= 1 && nid <= num_nodes && did >= 1 && did <= 6
+                dof_idx = (nid - 1) * 6 + did;
+                F_ext(dof_idx) = F_ext(dof_idx) + val;
+            end
         end
     end
 end
